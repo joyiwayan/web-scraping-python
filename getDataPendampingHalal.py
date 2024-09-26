@@ -1,6 +1,8 @@
 # import plugin
 import requests
 from bs4 import BeautifulSoup
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
@@ -36,8 +38,9 @@ cursor = db.cursor()
 # link to scrap
 url = "https://info.halal.go.id/pendampingan/"
 
-# make request with selenium
-driver = webdriver.Chrome()
+options = webdriver.ChromeOptions()
+service = ChromeService(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=options)
 driver.implicitly_wait(10)
 driver.get(url)
 # sleep and/or wait until web full opened
