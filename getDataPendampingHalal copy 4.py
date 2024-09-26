@@ -104,23 +104,37 @@ def openModalGetDataCloseModalPerRow():
     db.commit()
     print('one row data stored to database!')
 
-    # Click the close button after clicking the detail (lihat) row
-    modal = driver.find_element(By.ID, 'viewModalPPH')
-    time.sleep(2)
-    driver.implicitly_wait(6)
+    # Wait for modal to be visible after clicking "lihat"
+try:
+    modal = WebDriverWait(driver, 20).until(
+        ec.visibility_of_element_located((By.ID, 'viewModalPPH'))
+    )
+    print("Modal is visible")
 
-    # Initialize close modal button selector
-    btn_close_click = WebDriverWait(driver, 40).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "btn-close")))
-    visible_buttons = [close_button for close_button in btn_close_click if close_button.is_displayed()]
+    # Initialize close modal button selector and wait for it to be clickable
+    btn_close_click = WebDriverWait(driver, 20).until(
+        ec.element_to_be_clickable((By.CLASS_NAME, "btn-close"))
+    )
 
-   # Click close modal button
-    time.sleep(2)
-    if visible_buttons:  
-        btn_lihat_click = visible_buttons[-1]  
+    # Extract only visible close buttons and click the last one
+    visible_buttons = [btn for btn in btn_close_click if btn.is_displayed()]
+    
+    if visible_buttons:
+        btn_lihat_click = visible_buttons[-1]
         driver.execute_script("arguments[0].click();", btn_lihat_click)
-        time.sleep(1)
+        print("Modal close button clicked")
     else:
         print("No visible close buttons found!")
+
+    # Explicit wait for the modal to be no longer visible (or closed)
+    WebDriverWait(driver, 10).until(
+        ec.invisibility_of_element_located((By.ID, 'viewModalPPH'))
+    )
+    print("Modal successfully closed")
+
+except Exception as e:
+    print(f"Error during modal interaction: {e}")
+
 
 # Note: Reassess the need for additional implicit waits; typically set once at the beginning of your script.
 
@@ -130,12 +144,12 @@ def clickDetailPerRow():
    # amount of row in current table show, should decrease 2 row, cause first row is thead and last row is pagination
    row_table_pendamping = len(driver.find_elements(By.XPATH, "//table[@id='GridView3']/tbody/tr")) - 2
 
-   time.sleep(5)
+   time.sleep(3)
    driver.implicitly_wait(60)
    for i in range(0, row_table_pendamping, 1):
          
          
-      time.sleep(5)
+      time.sleep(2)
       driver.implicitly_wait(60)
       print('')
       print(f"data index {i}")
@@ -143,7 +157,7 @@ def clickDetailPerRow():
       btn_lihat_click = WebDriverWait(driver, 60).until(ec.element_to_be_clickable((By.XPATH, f"//a[contains(@id,'GridView3_lbView_{i}')]")))
       driver.execute_script("arguments[0].click();", btn_lihat_click)
 
-      time.sleep(3)
+      time.sleep(2)
       driver.implicitly_wait(60)
 
       openModalGetDataCloseModalPerRow()
