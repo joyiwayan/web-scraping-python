@@ -36,6 +36,26 @@ driver.get(url)
 time.sleep(15)
 driver.implicitly_wait(20000)
 
+# Click close button after fetching data from modal
+def close_modal():
+    try:
+        modal_close_buttons = WebDriverWait(driver, 10).until(
+            ec.presence_of_all_elements_located((By.CLASS_NAME, "btn-close"))
+        )
+        # Find a visible button and click it
+        visible_buttons = [btn for btn in modal_close_buttons if btn.is_displayed()]
+        if visible_buttons:
+            close_button = visible_buttons[-1]  # Take the last one in case multiple modals
+            driver.execute_script("arguments[0].click();", close_button)
+            time.sleep(2)  # Give time for the modal to close
+        else:
+            print("No visible modal close button found")
+    except Exception as e:
+        print(f"Error closing modal: {e}")
+
+processed_registrations = set()
+
+
 def openModalGetDataCloseModalPerRow():
     # Wait for data to be fully fetched after clicking the button "lihat"
     driver.implicitly_wait(20000)
@@ -96,71 +116,67 @@ def openModalGetDataCloseModalPerRow():
         "lembaga": result[0]['lembaga']  # Added lembaga to the dictionary
     })
 
-    # SQL insertion with lembaga added
-    sql = "INSERT INTO data_pph_province (province, email, name, no_telp, kabupaten, kecamatan, pendampingan_pelaku_usaha, no_registrasi, tgl_terbit, lembaga) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE name = VALUES(name), no_telp = VALUES(no_telp), kabupaten = VALUES(kabupaten), kecamatan = VALUES(kecamatan), pendampingan_pelaku_usaha = VALUES(pendampingan_pelaku_usaha), no_registrasi = VALUES(no_registrasi), tgl_terbit = VALUES(tgl_terbit), lembaga = VALUES(lembaga)"
+    # Skip if no_registrasi is already processed
+    no_reg = result[0]['no_registrasi']
+    if no_reg in processed_registrations:
+        print(f"Skipping duplicate registration: {no_reg}")
+        return  # Skip this row
     
-    val = (nameProv, result[0]['email'], result[0]['name'], result[0]['no_telp'], result[0]['kabupaten'], result[0]['kecamatan'], result[0]['pendampingan_pelaku_usaha'], result[0]['no_registrasi'], result[0]['tgl_terbit'], result[0]['lembaga'])
+    # Add to the processed set
+    processed_registrations.add(no_reg)
+
+    # Insert the data into database
+    sql = """
+        INSERT INTO data_pph_province (province, email, name, no_telp, kabupaten, kecamatan, pendampingan_pelaku_usaha, no_registrasi, tgl_terbit, lembaga)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE name = VALUES(name), no_telp = VALUES(no_telp), kabupaten = VALUES(kabupaten), kecamatan = VALUES(kecamatan), 
+        pendampingan_pelaku_usaha = VALUES(pendampingan_pelaku_usaha), no_registrasi = VALUES(no_registrasi), tgl_terbit = VALUES(tgl_terbit), lembaga = VALUES(lembaga)
+    """
+    
+    val = (nameProv, result[0]['email'], result[0]['name'], result[0]['no_telp'], result[0]['kabupaten'], result[0]['kecamatan'], result[0]['pendampingan_pelaku_usaha'], no_reg, result[0]['tgl_terbit'], result[0]['lembaga'])
     cursor.execute(sql, val)
     db.commit()
-    print('one row data stored to database!')
+    print(f"Stored data for: {result[0]['name']} with no_registrasi {no_reg}")
 
-    # Wait for modal to be visible after clicking "lihat"
-try:
-    modal = WebDriverWait(driver, 20).until(
-        ec.visibility_of_element_located((By.ID, 'viewModalPPH'))
-    )
-    print("Modal is visible")
-
-    # Initialize close modal button selector and wait for it to be clickable
-    btn_close_click = WebDriverWait(driver, 20).until(
-        ec.element_to_be_clickable((By.CLASS_NAME, "btn-close"))
-    )
-
-    # Extract only visible close buttons and click the last one
-    visible_buttons = [btn for btn in btn_close_click if btn.is_displayed()]
-    
-    if visible_buttons:
-        btn_lihat_click = visible_buttons[-1]
-        driver.execute_script("arguments[0].click();", btn_lihat_click)
-        print("Modal close button clicked")
-    else:
-        print("No visible close buttons found!")
-
-    # Explicit wait for the modal to be no longer visible (or closed)
-    WebDriverWait(driver, 10).until(
-        ec.invisibility_of_element_located((By.ID, 'viewModalPPH'))
-    )
-    print("Modal successfully closed")
-
-except Exception as e:
-    print(f"Error during modal interaction: {e}")
-
+    # Close modal after data insertion
+    close_modal()
 
 # Note: Reassess the need for additional implicit waits; typically set once at the beginning of your script.
 
 
 
 def clickDetailPerRow():
-   # amount of row in current table show, should decrease 2 row, cause first row is thead and last row is pagination
-   row_table_pendamping = len(driver.find_elements(By.XPATH, "//table[@id='GridView3']/tbody/tr")) - 2
+    # Get the number of rows in the table excluding header and pagination rows
+    row_table_pendamping = len(driver.find_elements(By.XPATH, "//table[@id='GridView3']/tbody/tr")) - 2
 
-   time.sleep(3)
-   driver.implicitly_wait(60)
-   for i in range(0, row_table_pendamping, 1):
-         
-         
-      time.sleep(2)
-      driver.implicitly_wait(60)
-      print('')
-      print(f"data index {i}")
-      print('')
-      btn_lihat_click = WebDriverWait(driver, 60).until(ec.element_to_be_clickable((By.XPATH, f"//a[contains(@id,'GridView3_lbView_{i}')]")))
-      driver.execute_script("arguments[0].click();", btn_lihat_click)
+    for i in range(0, row_table_pendamping):
+        try:
+            print(f"\nProcessing row index {i}\n")
 
-      time.sleep(2)
-      driver.implicitly_wait(60)
+            # Wait until the 'Lihat' button is clickable, then click it
+            btn_lihat_click = WebDriverWait(driver, 60).until(ec.element_to_be_clickable(
+                (By.XPATH, f"//a[contains(@id,'GridView3_lbView_{i}')]")))
+            driver.execute_script("arguments[0].click();", btn_lihat_click)
 
-      openModalGetDataCloseModalPerRow()
+            # Try to extract data, close modal, and handle potential exceptions
+            try:
+                openModalGetDataCloseModalPerRow()
+            except Exception as e:
+                print(f"Error in data extraction for row {i}: {e}")
+                continue  # Continue with the next row if the modal extraction fails
+
+        except Exception as e:
+            print(f"Error processing row {i}: {e}")
+            continue  # Continue with the next row if there is an issue clicking the button
+
+        # Clear cookies/session data every 50 rows to prevent memory leaks
+        if i % 50 == 0:
+            print("Clearing cookies and refreshing session to prevent memory leaks...")
+            driver.delete_all_cookies()
+            time.sleep(5)  # Allow some time for session reset if needed
+
+
+
 
 def callDependPageIfLostConnection(last_page):
    btn_page_next_click = WebDriverWait(driver, 50).until(ec.element_to_be_clickable((By.XPATH, f"//table[@id='GridView3']/tbody/tr[@class='GridPager']/td/table/tbody/tr/td/a[contains(@href,'{last_page}')]")))

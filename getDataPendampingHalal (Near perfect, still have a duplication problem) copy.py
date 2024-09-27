@@ -36,117 +36,193 @@ driver.get(url)
 time.sleep(15)
 driver.implicitly_wait(20000)
 
+# Click close button after fetching data from modal
+def close_modal():
+    try:
+        # Wait for the modal to be present and visible
+        modal = WebDriverWait(driver, 10).until(
+            ec.visibility_of_element_located((By.ID, 'viewModalPPH'))
+        )
+        if modal:
+            # modal_close_buttons = driver.find_elements(By.CLASS_NAME, "btn-close")
+            # # Filter visible buttons
+            # visible_buttons = [btn for btn in modal_close_buttons if btn.is_displayed()]
+            try:
+                # First, attempt to find and click the backdrop to close the modal by clicking outside
+                modal_backdrop = driver.find_element(By.CSS_SELECTOR, '.modal.fade.show')  # Using CSS selector for multiple classes
+                driver.execute_script("arguments[0].click();", modal_backdrop)
+                time.sleep(2)  # Wait for modal to close
+                print("Modal closed by clicking outside (backdrop).")
+
+            except Exception as e:
+                print(f"Error closing modal by clicking outside: {e}. Trying to close using the close button...")
+
+                # If clicking the backdrop fails, fall back to clicking the close button
+                modal_close_buttons = driver.find_elements(By.CLASS_NAME, "btn-close")
+                visible_buttons = [btn for btn in modal_close_buttons if btn.is_displayed()]
+
+                if visible_buttons:
+                    close_button = visible_buttons[-1]  # Click the last visible button
+                    driver.execute_script("arguments[0].click();", close_button)
+                    time.sleep(2)  # Wait for the modal to close
+                    print("Modal closed using the close button.")
+                else:
+                    print("No visible modal close button found.")
+            else:
+                print("Modal is not currently displayed")
+
+    except Exception as e:
+        print(f"Error closing modal: {e}")
+
+
+processed_registrations = set()
+
+
+
+# Set to keep track of processed registrations to avoid duplicates
+processed_registrations = set()
+data_pendamping_halal = []  # Assuming this is defined globally or earlier in the code
+
 def openModalGetDataCloseModalPerRow():
     # Wait for data to be fully fetched after clicking the button "lihat"
-    driver.implicitly_wait(20000)
+    driver.implicitly_wait(20)  # Adjusted to reasonable timeout
     driver.switch_to.active_element
     driver.switch_to.window(driver.window_handles[0])
-    time.sleep(15)
+    time.sleep(15)  # Consider replacing with explicit waits if possible
 
-    # Checking if the modal is displayed or not yet
-    modal = driver.find_element(By.ID, 'viewModalPPH')
-    time.sleep(3)
-    driver.implicitly_wait(50)
-    
-    # Fetching data from the modal
-    result = driver.execute_script(
-    """
-    var data_pendamping = [];
-    for (var i of document.querySelectorAll('.modal#viewModalPPH')){
-        var tableRows = [];
+    # Checking if the modal is displayed or not
+    try:
+        modal = driver.find_element(By.ID, 'viewModalPPH')
+        time.sleep(3)  # Wait for the modal content to load
         
-        // Extracting data from the mentoring table
-        var mentoringTableRows = i.querySelectorAll('table.table-sm tr:nth-of-type(n+2)');
-        for (var row of mentoringTableRows) {
-            var cols = row.querySelectorAll('td');
-            var rowData = [];
-            for (var col of cols) {
-                rowData.push(col.textContent);
+        # Fetching data from the modal
+        result = driver.execute_script(
+            """
+            var data_pendamping = [];
+            var mentoringTableRows = document.querySelectorAll('.modal#viewModalPPH table.table-sm tr:nth-of-type(n+2)');
+            if (mentoringTableRows.length > 0) {
+                var tableRows = [];
+                for (var row of mentoringTableRows) {
+                    var cols = row.querySelectorAll('td');
+                    var rowData = [];
+                    for (var col of cols) {
+                        rowData.push(col.textContent);
+                    }
+                    tableRows.push(rowData.join(", "));
+                }
+
+                // Extracting other relevant data from the modal
+                data_pendamping.push({
+                    email: document.querySelector('span#lblEmailPendamping').textContent,
+                    name: document.querySelector('span#lblNamaPendamping').textContent,
+                    no_telp: document.querySelector('span#lblNoTelponPendamping').textContent,
+                    kabupaten: document.querySelector('span#lblKabupatenPendamping').textContent,
+                    kecamatan: document.querySelector('span#lblKecamatanPendamping').textContent,
+                    no_registrasi: document.querySelector('span#lblNoRegPendamping').textContent,
+                    tgl_terbit: document.querySelector('span#lblTglTerbitPendamping').textContent,
+                    lembaga: document.querySelector('span#lblLembagaPendamping2').textContent,  // Added lembaga (institution)
+                    pendampingan_pelaku_usaha: tableRows.join(", ")  // Store table data as a single string
+                });
             }
-            tableRows.push(rowData.join(", "));
-        }
+            return data_pendamping;
+            """
+        )
 
-        // Extracting other relevant data from the modal
-        data_pendamping.push({
-            email: i.querySelector('span#lblEmailPendamping').textContent,
-            name: i.querySelector('span#lblNamaPendamping').textContent,
-            no_telp: i.querySelector('span#lblNoTelponPendamping').textContent,
-            kabupaten: i.querySelector('span#lblKabupatenPendamping').textContent,
-            kecamatan: i.querySelector('span#lblKecamatanPendamping').textContent,
-            no_registrasi: i.querySelector('span#lblNoRegPendamping').textContent,
-            tgl_terbit: i.querySelector('span#lblTglTerbitPendamping').textContent,
-            lembaga: i.querySelector('span#lblLembagaPendamping2').textContent,  // Added lembaga (institution)
-            pendampingan_pelaku_usaha: tableRows.join(", ")  // Store table data as a single string
-        });
-    }
-    return data_pendamping;
-    """
-)
+        if not result:
+            print("No data fetched from the modal")
+            return
+        
+        print(f"Fetched data: {result}")
 
-    print(f"fetched data {result}")
-    data_pendamping_halal.append({
-        "name": result[0]['name'],
-        "email": result[0]['email'],
-        "no_telp": result[0]['no_telp'],
-        "kabupaten": result[0]['kabupaten'],
-        "kecamatan": result[0]['kecamatan'],
-        "pendampingan_pelaku_usaha": result[0]['pendampingan_pelaku_usaha'],
-        "no_registrasi": result[0]['no_registrasi'],
-        "tgl_terbit": result[0]['tgl_terbit'],
-        "lembaga": result[0]['lembaga']  # Added lembaga to the dictionary
-    })
+        # Skip if no_registrasi is already processed
+        no_reg = result[0]['no_registrasi']
+        if no_reg in processed_registrations:
+            print(f"Skipping duplicate registration: {no_reg}")
+            return  # Skip this row
 
-    # SQL insertion with lembaga added
-    sql = "INSERT INTO data_pph_province (province, email, name, no_telp, kabupaten, kecamatan, pendampingan_pelaku_usaha, no_registrasi, tgl_terbit, lembaga) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE name = VALUES(name), no_telp = VALUES(no_telp), kabupaten = VALUES(kabupaten), kecamatan = VALUES(kecamatan), pendampingan_pelaku_usaha = VALUES(pendampingan_pelaku_usaha), no_registrasi = VALUES(no_registrasi), tgl_terbit = VALUES(tgl_terbit), lembaga = VALUES(lembaga)"
-    
-    val = (nameProv, result[0]['email'], result[0]['name'], result[0]['no_telp'], result[0]['kabupaten'], result[0]['kecamatan'], result[0]['pendampingan_pelaku_usaha'], result[0]['no_registrasi'], result[0]['tgl_terbit'], result[0]['lembaga'])
-    cursor.execute(sql, val)
-    db.commit()
-    print('one row data stored to database!')
+        # Add to the processed set
+        processed_registrations.add(no_reg)
 
-    # Click the close button after clicking the detail (lihat) row
-    modal = driver.find_element(By.ID, 'viewModalPPH')
-    time.sleep(2)
-    driver.implicitly_wait(6)
+        # Store data for further processing
+        data_pendamping_halal.append({
+            "name": result[0]['name'],
+            "email": result[0]['email'],
+            "no_telp": result[0]['no_telp'],
+            "kabupaten": result[0]['kabupaten'],
+            "kecamatan": result[0]['kecamatan'],
+            "pendampingan_pelaku_usaha": result[0]['pendampingan_pelaku_usaha'],
+            "no_registrasi": result[0]['no_registrasi'],
+            "tgl_terbit": result[0]['tgl_terbit'],
+            "lembaga": result[0]['lembaga']  # Added lembaga to the dictionary
+        })
 
-    # Initialize close modal button selector
-    btn_close_click = WebDriverWait(driver, 40).until(ec.presence_of_all_elements_located((By.CLASS_NAME, "btn-close")))
-    visible_buttons = [close_button for close_button in btn_close_click if close_button.is_displayed()]
+        # Insert the data into database
+        sql = """
+            INSERT INTO data_pph_province (province, email, name, no_telp, kabupaten, kecamatan, pendampingan_pelaku_usaha, no_registrasi, tgl_terbit, lembaga)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                name = VALUES(name), 
+                no_telp = VALUES(no_telp), 
+                kabupaten = VALUES(kabupaten), 
+                kecamatan = VALUES(kecamatan), 
+                pendampingan_pelaku_usaha = VALUES(pendampingan_pelaku_usaha), 
+                tgl_terbit = VALUES(tgl_terbit), 
+                lembaga = VALUES(lembaga)
+        """
+        
+        val = (nameProv, result[0]['email'], result[0]['name'], result[0]['no_telp'], 
+               result[0]['kabupaten'], result[0]['kecamatan'], 
+               result[0]['pendampingan_pelaku_usaha'], no_reg, 
+               result[0]['tgl_terbit'], result[0]['lembaga'])
 
-   # Click close modal button
-    time.sleep(2)
-    if visible_buttons:  
-        btn_lihat_click = visible_buttons[-1]  
-        driver.execute_script("arguments[0].click();", btn_lihat_click)
-        time.sleep(1)
-    else:
-        print("No visible close buttons found!")
+        cursor.execute(sql, val)
+        db.commit()
+        print(f"Stored data for: {result[0]['name']} with no_registrasi {no_reg}")
+
+    except Exception as e:
+        print(f"Error in modal handling: {e}")
+
+    finally:
+        # Close modal after data insertion
+        close_modal()  # Ensure this function is defined to close the modal properly
+
 
 # Note: Reassess the need for additional implicit waits; typically set once at the beginning of your script.
 
 
 
 def clickDetailPerRow():
-   # amount of row in current table show, should decrease 2 row, cause first row is thead and last row is pagination
-   row_table_pendamping = len(driver.find_elements(By.XPATH, "//table[@id='GridView3']/tbody/tr")) - 2
+    # Get the number of rows in the table excluding header and pagination rows
+    row_table_pendamping = len(driver.find_elements(By.XPATH, "//table[@id='GridView3']/tbody/tr")) - 2
 
-   time.sleep(5)
-   driver.implicitly_wait(60)
-   for i in range(0, row_table_pendamping, 1):
-         
-         
-      time.sleep(5)
-      driver.implicitly_wait(60)
-      print('')
-      print(f"data index {i}")
-      print('')
-      btn_lihat_click = WebDriverWait(driver, 60).until(ec.element_to_be_clickable((By.XPATH, f"//a[contains(@id,'GridView3_lbView_{i}')]")))
-      driver.execute_script("arguments[0].click();", btn_lihat_click)
+    for i in range(0, row_table_pendamping):
+        try:
+            print(f"\nProcessing row index {i}\n")
 
-      time.sleep(3)
-      driver.implicitly_wait(60)
+            # Wait until the 'Lihat' button is clickable, then click it
+            btn_lihat_click = WebDriverWait(driver, 60).until(ec.element_to_be_clickable(
+                (By.XPATH, f"//a[contains(@id,'GridView3_lbView_{i}')]")))
+            driver.execute_script("arguments[0].click();", btn_lihat_click)
 
-      openModalGetDataCloseModalPerRow()
+            # Try to extract data, close modal, and handle potential exceptions
+            try:
+                openModalGetDataCloseModalPerRow()
+            except Exception as e:
+                print(f"Error in data extraction for row {i}: {e}")
+                continue  # Continue with the next row if the modal extraction fails
+
+        except Exception as e:
+            print(f"Error processing row {i}: {e}")
+            continue  # Continue with the next row if there is an issue clicking the button
+
+        # Clear cookies/session data every 50 rows to prevent memory leaks
+        if i % 50 == 0:
+            print("Clearing cookies and refreshing session to prevent memory leaks...")
+            driver.delete_all_cookies()
+            time.sleep(5)  # Allow some time for session reset if needed
+
+
+
 
 def callDependPageIfLostConnection(last_page):
    btn_page_next_click = WebDriverWait(driver, 50).until(ec.element_to_be_clickable((By.XPATH, f"//table[@id='GridView3']/tbody/tr[@class='GridPager']/td/table/tbody/tr/td/a[contains(@href,'{last_page}')]")))
